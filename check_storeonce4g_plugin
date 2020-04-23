@@ -1,0 +1,208 @@
+#!/bin/bash
+# StoreOnce Bash Plugin 
+#
+# Plugin by @deividgdt https://github.com/deividgdt
+# Requirements: curl , jq , bashv4
+plugin_version="1.1"
+
+function getOutput(){
+	######################################################
+	# Function to get the json output from the webservice#
+	######################################################
+	
+	output=$(curl -H "Accept: application/json" --insecure --user "${user}:${password}" "https://${ip_address}/${endpoint}" 2> /dev/null)
+	
+	if [ -z "${output}" ]; then
+		echo "WARNING - ${ip_address} not available, or user/password incorrect"
+		exit 1;
+	fi
+}
+
+function servSetHeal(){
+	#########################################################
+	# This function retrieve all the service set information#
+	#########################################################
+	
+	vtl_status=$(echo $output | jq '.services["vtl"].healthString' | sed 's,",,g')
+	object_store_status=$(echo $output | jq '.services["object-store"].healthString' | sed 's,",,g')
+	predupe_status=$(echo $output | jq '.services["predupe"].healthString' | sed 's,",,g')
+	cat_rpc_status=$(echo $output | jq '.services["cat-rpc"].healthString' | sed 's,",,g')
+	smm_rpc_status=$(echo $output | jq '.services["smm-rpc"].healthString' | sed 's,",,g')
+	nas_rpc_status=$(echo $output | jq '.services["nas-rpc"].healthString' | sed 's,",,g')
+	replication_status=$(echo $output | jq '.services["replication"].healthString' | sed 's,",,g')
+	buffer_manager_status=$(echo $output | jq '.services["buffer-manager"].healthString' | sed 's,",,g')
+	nas_status=$(echo $output | jq '.services["nas"].healthString' | sed 's,",,g')
+	vtl_rpc_status=$(echo $output | jq '.services["vtl-rpc"].healthString' | sed 's,",,g')
+	rep_rpc_status=$(echo $output | jq '.services["rep-rpc"].healthString' | sed 's,",,g')
+	rep_obj_rpc_status=$(echo $output | jq '.services["rep-obj-rpc"].healthString' | sed 's,",,g')
+	evt_mgr_status=$(echo $output | jq '.services["evt-mgr"].healthString' | sed 's,",,g')
+	nas_share_status=$(echo $output | jq '.services["nas-share"].healthString' | sed 's,",,g')
+	OverallHealth_status=$(echo $output | jq '.services["OverallHealth"].healthString' | sed 's,",,g')
+	res_mgr_status=$(echo $output | jq '.services["res-mgr"].healthString' | sed 's,",,g')
+	d2d_iscsid_status=$(echo $output | jq '.services["d2d-iscsid"].healthString' | sed 's,",,g')
+	fc_rpc_status=$(echo $output | jq '.services["fc-rpc"].healthString' | sed 's,",,g')
+	smm_status=$(echo $output | jq '.services["smm"].healthString' | sed 's,",,g')
+	licensing_rpc_status=$(echo $output | jq '.services["licensing-rpc"].healthString' | sed 's,",,g')
+	rmc_ert_iscsid_status=$(echo $output | jq '.services["rmc-ert-iscsid"].healthString' | sed 's,",,g')
+	nas_bm_status=$(echo $output | jq '.services["nas-bm"].healthString' | sed 's,",,g')
+	d2d_manager_proxy_status=$(echo $output | jq '.services["d2d-manager-proxy"].healthString' | sed 's,",,g')
+	
+	declare -A all_services=( ["VTL"]="$vtl_status" ["Object_Store"]="$object_store_status" ["Predupe"]="$predupe_status" ["Catalyst_RPC_Server"]="$cat_rpc_status" ["SMM_Thift_RPC_Service"]="$smm_rpc_status" ["NAS_RPC_Server"]="$nas_rpc_status" ["Replication"]="$replication_status" ["Buffer_Manager"]="$buffer_manager_status" ["NAS"]="$nas_status" ["VTL_RPC_Server"]="$vtl_rpc_status" ["Replication_RPC_Server"]="$rep_rpc_status" ["RepObj_RPC_Server"]="$rep_obj_rpc_status" ["D2D_Event_Manager"]="$evt_mgr_status" ["NAS_Share_Manager"]="$nas_share_status" ["D2D_Manager"]="$OverallHealth_status" ["D2D_Resource_Manager"]="$res_mgr_status" ["ISCSI_Daemon"]="$d2d_iscsid_status" ["Fiber_Channel_RPC_Server"]="$fc_rpc_status" ["Store_Manager_Manager"]="$smm_status" ["Licensing_RPC_Server"]="$licensing_rpc_status" ["RMC_ERT_iSCSI_Daemon"]="$rmc_ert_iscsid_status" ["NAS_Buffer_Manager"]="$nas_bm_status" ["D2D_Manager"]="$d2d_manager_proxy_status" )
+	
+	for each_service in "${!all_services[@]}"; do
+		perfData="$perfData $(echo "$each_service=${all_services[$each_service]}")"
+		if [[ "$(echo ${all_services[$each_service]} | tr '[:upper:]' '[:lower:]')" == "critical" ]]; then
+			critical_exit_status=2
+			services_not_runnig="$services_not_runnig $each_service"
+		elif [[ "$(echo ${all_services[$each_service]} | tr '[:upper:]' '[:lower:]')" == "warning" ]]; then
+			warning_exit_status=1
+			services_not_runnig="$services_not_runnig $each_service"
+		fi
+	done
+	
+	if [ ! -z "$critical_exit_status" ]; then
+		exit_status="$critical_exit_status"
+		echo "CRITICAL - The following services are not running: ${services_not_runnig}"
+		echo "$perfData"
+		exit $exit_status;
+	elif [ ! -z "$warning_exit_status" ]; then
+		exit_status="$warning_exit_status"
+		echo "WARNING - The following services are not running: ${services_not_runnig}"
+		echo "$perfData"
+		exit $exit_status;
+	else
+		echo "OK - Successfully Retrieved Service Set Information. All services running."
+		echo "$perfData"
+		exit 0;
+	fi
+}
+
+function sysHeal(){
+	#######################################################
+	# This function retrieve the System Health Information#
+	#######################################################
+	
+	sysheal_status=$(echo $output | jq '.members[0].status' | sed 's,",,g')
+	appliance_status=$(echo $output | jq '.members[0].applianceStatus' | sed 's,",,g')
+	data_services_status=$(echo $output | jq '.members[0].dataServicesStatus' | sed 's,",,g')
+	licence_status=$(echo $output | jq '.members[0].licenseStatus' | sed 's,",,g')
+	user_storage_status=$(echo $output | jq '.members[0].userStorageStatus' | sed 's,",,g')
+	remote_support_status=$(echo $output | jq '.members[0].remoteSupportStatus' | sed 's,",,g')
+	
+	declare -A all_modules=( ["Sysheal_Status"]="$sysheal_status" ["Appliance_Status"]="$appliance_status" ["Data_Services_Status"]="$data_services_status" ["Licence_Status"]="$licence_status" ["User_Storage_Status"]="$user_storage_status" ["Remote_Support_Status"]="$remote_support_status" )
+	
+	for each_service in "${!all_modules[@]}"; do
+		perfData="$perfData $(echo "$each_service=${all_modules[$each_service]}")"
+		if [[ "$(echo ${all_modules[$each_service]} | tr '[:upper:]' '[:lower:]')" == "critical" ]]; then
+			critical_exit_status=2
+			modules_ko="$modules_ko $each_service"
+		elif [[ "$(echo ${all_modules[$each_service]} | tr '[:upper:]' '[:lower:]')" == "ok" ]]; then
+			ok_exit_status=0
+		else
+			warning_exit_status=1
+			modules_ko="$modules_ko $each_service"
+		fi
+	done
+	
+	if [ ! -z "$critical_exit_status" ]; then 
+		exit_status="$critical_exit_status"
+		echo "CRITICAL - The following modules are not OK: ${modules_ko}"
+		echo "$perfData"
+		exit $exit_status;
+	elif [ ! -z "$warning_exit_status" ]; then
+		exit_status="$warning_exit_status"
+		echo "WARNING - The following modules are not OK: ${modules_ko}"
+		echo "$perfData"
+		exit $exit_status;
+	elif [ ! -z "$ok_exit_status" ]; then
+		exit_status="$ok_exit_status"
+		echo "OK - Successfully retrieved System Health Information"
+		echo "$perfData"
+		exit $exit_status;
+	fi
+
+}
+
+function servComStat(){
+	#########################################################
+	# This function retrieve the main status of the Hardware#
+	#########################################################
+	
+	report_status=$(echo $output | jq '.server[0].hardwareReportResponse.status' | sed 's,",,g')
+	
+	if [[ "$(echo ${report_status} | tr '[:upper:]' '[:lower:]')" != "success" ]]; then
+		echo "WARNING - Server Hardware Information Unkown"
+		exit 1;
+	fi
+	
+	report_overall_status=$(echo $output | jq '.server[0].hardwareReportResponse.hardwareReport.overallStatus.value' | sed 's,",,g')
+	gen_hw_status=$(echo $output | jq '.server[0].hardwareReportResponse.hardwareReport.component[0].value.component[0].value.status' | sed 's,",,g')
+	gen_hw_uuid=$(echo $output | jq '.server[0].hardwareReportResponse.hardwareReport.component[0].value.component[0].value.uuid' | sed 's,",,g')
+	
+	declare -A all_status=( ["Overall_Status"]="$report_overall_status" ["$gen_hw_uuid"]="$gen_hw_status" )
+	
+	for each_status in "${!all_status[@]}"; do
+		perfData="$perfData $(echo "$each_status=${all_status[$each_status]}")"
+		if [[ "$(echo ${all_status[$each_status]} | tr '[:upper:]' '[:lower:]')" != "ok" ]]; then
+			status_ko="$status_ko $each_status"
+			exit_status=2
+		fi
+	done
+	
+	if [ ! -z $exit_status ]; then 
+		echo "WARNING - The following status are NOT ok: ${status_ko}"
+		echo "$perfData"
+		exit $exit_status;
+	else
+		echo "OK - Successfully Retrieved Server Hardware Information"
+		echo "$perfData"
+		exit 0;
+	fi
+
+}
+
+if [ $# -lt 4 ]; then
+	echo "$0 -h <ip> -u <user> -p <pass> -o [<option> = serviceshealth || syshealth || compstatus ]"
+	exit 1;
+fi
+
+# The options passed by the user
+while getopts "h:u:p:o:" opt; do
+	case "$opt" in
+		h ) 
+			ip_address=$OPTARG						;;
+		u ) 
+			user=$OPTARG							;;
+		p ) 
+			password=$OPTARG		 				;;
+		o ) 
+			option=$OPTARG							;;
+		\?) 
+			echo "Invalid option. -$OPTARG" 
+			exit 1									;;
+	esac
+done
+
+# Example: ./check_storageonce4ng_plugin -h 172.16.1.1 -u user -p pass -o compstatus
+
+case ${option} in
+	"serviceshealth")
+		endpoint="api/v1/data-services/d2d-service/status"
+		getOutput
+		servSetHeal
+	;;
+	"syshealth")
+		endpoint="rest/index/resources?category=systems&query=dataSenderId:localhost"
+		getOutput
+		sysHeal
+	;;
+	"compstatus")
+		endpoint="hwmonitor/servers?listDetailed=true"
+		getOutput
+		servComStat
+	;;
+	*)
+		echo "Error Unknown Option. Use: [ serviceshealth || syshealth || compstatus ]"
+		exit 1;
+	;;
+esac
