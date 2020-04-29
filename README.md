@@ -20,4 +20,8 @@ A Nagios/Centreon plugin for the 4th Generation (4G) of StoreOnce. Simply Bash c
     
     + **compstatus**: hardware components status: Current overall status. 
     
-    
+## More info
+- [Here (EN)](https://deividsdocs.wordpress.com/2020/04/29/a-centreon-nagios-plugin-for-hp-storeonce-4g/)
+
+## Buy me a coffe
+[![ko-fi](https://www.ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/U7U01LTQB)
